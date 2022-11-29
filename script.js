@@ -1,13 +1,13 @@
 class EventNamespaces {
-  static eventNamespaces = {};
-
   static on(event, namespace, fn) {
+    this.eventNamespaces ??= {};
     // allow on to be used without a namespace set
     if (typeof namespace === "function") {
       fn = namespace;
-      namespace = "";
+      namespace = null;
     }
-    namespace ??= "";
+    namespace ??= event.split(".")[1] ?? "";
+    event = event.split(".")[0];
     this.eventNamespaces[namespace] = {
       ...this.eventNamespaces[namespace],
       [event]: fn,
@@ -15,28 +15,23 @@ class EventNamespaces {
     this.addEventListener(event, this.eventNamespaces[namespace][event]);
   }
 
-  static off(namespace, event) {
-    namespace ??= "";
-    if (event === undefined || event === null) {
-      // remove the whole namespaces event listeners and delete the namespace from the element
-      Object.entries(this.eventNamespaces[namespace]).forEach(([e, fn]) =>
-        this.removeEventListener(e, fn)
-      );
-      delete this.eventNamespaces[namespace];
-      return;
-    }
-    this.removeEventListener(event, this.eventNamespaces[namespace][event]);
-    delete this.eventNamespaces[namespace][event];
-    if (
-      this.eventNamespaces[namespace] &&
-      Object.keys(this.eventNamespaces[namespace]) === 0 &&
-      Object.getPrototypeOf(this.eventNamespaces[namespace]) ===
-        Object.prototype
-    ) {
-      delete this.eventNamespaces[namespace];
-    }
+  static off(event = "", namespace) {
+    Object.entries(this.eventNamespaces).forEach(([ns, evts]) => {
+      if (namespace == undefined || ns === namespace) {
+        // TODO: maybe add an optimization later for if event is even in the namespace
+        Object.entries(evts).forEach(([e, fn]) => {
+          if (event === "" || event === e) {
+            this.removeEventListener(e, fn);
+            delete this.eventNamespaces[ns][e];
+          }
+        });
+        // clear out empty event namespaces
+        if (Object.keys(this.eventNamespaces[ns]).length === 0) {
+          delete this.eventNamespaces[ns];
+        }
+      }
+    });
   }
 }
 window.on = document.on = Element.prototype.on = EventNamespaces.on;
 window.off = document.off = Element.prototype.off = EventNamespaces.off;
-window.eventNamespaces = document.eventNamespaces = Element.eventNamespaces = EventNamespaces.eventNamespaces;
